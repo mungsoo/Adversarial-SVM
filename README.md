@@ -5,26 +5,26 @@ SVM without label noise
 -----
 The data set choise is toy.
 
-<center>![](https://github.com/mungsoo/Adversarial-SVM/blob/master/images/ori.png?raw=true)</center>
+![](https://github.com/mungsoo/Adversarial-SVM/blob/master/images/ori.png?raw=true)
 
 SVM with label noise
 ---
-<center>![](https://github.com/mungsoo/Adversarial-SVM/blob/master/images/ln.png?raw=true)</center>
+![](https://github.com/mungsoo/Adversarial-SVM/blob/master/images/ln.png?raw=true)
 
 
 Ln-Robust-SVM with \mu = 0.1
 ---
-<center>![](https://github.com/mungsoo/Adversarial-SVM/blob/master/images/ln.robust.mu.0.1.png?raw=true)</center>
+![](https://github.com/mungsoo/Adversarial-SVM/blob/master/images/ln.robust.mu.0.1.png?raw=true)
 
 
 Ln-Robust-SVM with \mu = 0.5
 ---
-<center>![](https://github.com/mungsoo/Adversarial-SVM/blob/master/images/ln.robust.mu.0.5.png?raw=true)</center>
+![](https://github.com/mungsoo/Adversarial-SVM/blob/master/images/ln.robust.mu.0.5.png?raw=true)
 
 
 Training result on sonar_scale
 -----
-<center>![](https://github.com/mungsoo/Adversarial-SVM/blob/master/images/sonar.jpg?raw=true)</center>
+![](https://github.com/mungsoo/Adversarial-SVM/blob/master/images/sonar.jpg?raw=true)
 
 Data Cleansing of proc-train
 ---
@@ -41,7 +41,7 @@ np.savetxt('proc-train-clean', proc_train, delimiter = ' ')
 
 error_index are the training sample which are falsely predicted and the distance to dicision boundry is greater than 9.
 
-<center>![](https://github.com/mungsoo/Adversarial-SVM/blob/master/images/dirty_data.jpg?raw=true)</center>
+![](https://github.com/mungsoo/Adversarial-SVM/blob/master/images/dirty_data.jpg?raw=true)
 
 We can find that the total number of dirty label is 200, which is 20% of the size of training set.
 So I reverse these labels and save as proc-train-clean.
