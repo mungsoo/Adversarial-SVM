@@ -38,10 +38,10 @@ def get_toy_data(n_samples=100, seed=None):
     return X, y
 
 
-def get_sonar_data():
+def get_train_data(dataset = 'sonar', n_samples = 208, n_features = 60):
     y = []
-    X = np.zeros((208, 60))
-    for ind_i, line in enumerate(open('sonar_scale', 'r')):
+    X = np.zeros((n_samples, n_features))
+    for ind_i, line in enumerate(open(dataset + '_scale', 'r')):
         cls = line.split()[0]
         cls = float(cls)
         feas = line.split()[1:]
@@ -53,21 +53,21 @@ def get_sonar_data():
         y.append(cls)
     X, y = np.asarray(X), np.asarray(y)
 
-    shuffle_ind = np.random.permutation(208)
+    shuffle_ind = np.random.permutation(n_samples)
     X = X[shuffle_ind]
     y = y[shuffle_ind]
 
     return X, y
 
 
-def split_train_test(X, y, ratio=.3):
+def split_train_test(X, y, ratio=.1):
     n_samples = X.shape[0]
     shuffle_ind = np.random.permutation(n_samples)
     X = X[shuffle_ind]
     y = y[shuffle_ind]
     split = int(n_samples * ratio)
-    return X[split:], y[split:], X[:split], y[:split]
-
+    return [X[:split], X[split:2*split], X[2*split:3*split], X[3*split:4*split], X[4*split:]],[y[:split], y[split:2*split], y[2*split:3*split], y[3*split:4*split], y[4*split:]]
+ 
 
 def svm_plot(X, y):
     y = np.asarray(y, dtype=float).reshape(-1)

@@ -1,5 +1,16 @@
 import numpy as np
-import cvxopt.solvers
+
+try:
+    import cvxopt.solvers
+    qp_solver = 'cvx'
+except ImportError as e:
+    import quadprog
+    qp_solver = 'quadprog'
+# except:
+#     # todo use scipy
+#     raise ImportError('install')
+#     qp_solver = 'scipy'
+
 import logging
 
 MIN_SUPPORT_VECTOR_MULTIPLIER = 1e-5
@@ -30,20 +41,15 @@ class SVMTrainer(object):
         lagrange_multipliers = self._compute_multipliers(X, y)
         return self._construct_predictor(X, y, lagrange_multipliers, remove_zero=remove_zero)
 
-    # Compute gram matrix
     def _gram_matrix(self, X):
         if self._kernel == 'linear':
-            # Linear kernel Kij = xi^T * xj
             return np.dot(X, X.T)
         elif self._kernel == 'rbf':
-            # rbf kernel Kij = K(xi, xj)
             distmat = calc_distmat2(X, X)
-            return np.exp(-  (distmat / (2 * self._sigma ** 2)))
+            return np.exp(-(distmat / (2 * self._sigma ** 2)))
 
     def _construct_predictor(self, X, y, lagrange_multipliers, remove_zero=True):
         if remove_zero:
-            
-            # If α is too small, we can take it as 0 without affecting the result
             support_vector_indices = \
                 lagrange_multipliers > MIN_SUPPORT_VECTOR_MULTIPLIER
 
@@ -60,11 +66,6 @@ class SVMTrainer(object):
         # bias = y_k - \sum z_i y_i  K(x_k, x_i)
         # Thus we can just predict an example with bias of zero, and
         # compute error.
-        # Actually, z_i is α_i here 
-        
-       
-        # Set bias = 0, so the return value of Predictor is
-        #\sum a_i y_i(x * x_i), where x is the input sample
         svm_bias_zero = SVMPredictor(
             kernel=self._kernel,
             bias=0.0,
@@ -72,9 +73,6 @@ class SVMTrainer(object):
             support_vectors=support_vectors,
             support_vector_labels=support_vector_labels,
         )
-
-        # Actually, using each support vector and its corresponding lagrange_multiplier 
-        # can derive a value of bias. So we compute all the feasilble values' average
         bias = support_vector_labels - svm_bias_zero.predict(support_vectors)
         bias = bias.mean()
         return SVMPredictor(
@@ -86,10 +84,10 @@ class SVMTrainer(object):
             sigma=self._sigma,
         )
 
-    # Compute Lagrange Multipliers α
     def _compute_multipliers(self, X, y):
         n_samples, n_features = X.shape
-
+        from scipy.spatial.distance import cdist
+        cdist(X, X)
         K = self._gram_matrix(X)
 
         # Solves
@@ -97,43 +95,67 @@ class SVMTrainer(object):
         # s.t.
         #  Gx \coneleq h
         #  Ax = b
-        
-        
-        # P = K * (yi yj.T)
-        P = (np.outer(y, y) * K)
+
+        # eig = (np.linalg.eigvals(K))
+        # import matplotlib.pylab as plt
+        # plt.stem(eig)
+        # plt.show()
+        P = np.outer(y, y) * K
         if self.ln_robust:
-            #Modify matrix P = Q * M Mij = 1 if i == j else 1-S
             S = 4 * self.mu * (1 - self.mu)
             M = np.ones_like(P) * (1 - S)
             M += np.identity(P.shape[0]) * S
             P *= M
-            P = cvxopt.matrix(P)
-        else:
-            P = cvxopt.matrix(P)
-            
-        q = cvxopt.matrix(-1 * np.ones(n_samples))
+        q = -1 * np.ones(n_samples).reshape((n_samples, 1))
 
         # -a_i \leq 0
-        # -Gx <= 0 
-        G_std = cvxopt.matrix(np.diag(np.ones(n_samples) * -1))
-        h_std = cvxopt.matrix(np.zeros(n_samples))
+        G_std = np.diag(np.ones(n_samples) * -1)
+        h_std = np.zeros(n_samples).reshape((n_samples, 1))
 
         # a_i \leq c
-        # Gx <= C
-        G_slack = cvxopt.matrix(np.diag(np.ones(n_samples)))
-        h_slack = cvxopt.matrix(np.ones(n_samples) * self._c)
+        G_slack = np.diag(np.ones(n_samples))
+        h_slack = (np.ones(n_samples) * self._c).reshape((n_samples, 1))
+        G = np.vstack((G_std, G_slack))
+        h = np.vstack((h_std, h_slack))
 
-        G = cvxopt.matrix(np.vstack((G_std, G_slack)))
-        h = cvxopt.matrix(np.vstack((h_std, h_slack)))
+        A = y.reshape((1, n_samples))
+        b = np.asarray([[0.0]])
 
-        A = cvxopt.matrix(y, (1, n_samples))
-        b = cvxopt.matrix(0.0)
-
-        solution = cvxopt.solvers.qp(P, q, G, h, A, b)
-
-        # Solve the quadratic programming to get α
         # Lagrange multipliers
+        solution = solve_qp(P, q, G, h, A, b)
+        # print(solution)
+        return solution
+
+
+def is_pos_def(x):
+    return np.all(np.linalg.eigvals(x) > 0)
+
+
+def solve_qp(P, q, G, h, A, b):
+    # Solves
+    # min 1/2 x^T P x + q^T x
+    # s.t.
+    #  Gx \coneleq h
+    #  Ax = b
+    if qp_solver == 'cvx':
+        P = .5 * (P + P.T)  # make sure P is symmetric
+        args = [P, q, G, h, A, b]
+        args = [cvxopt.matrix(arg) for arg in args]
+        solution = cvxopt.solvers.qp(*args)
         return np.ravel(solution['x'])
+    elif qp_solver == 'quadprog':
+        qp_G = .5 * (P + P.T)
+        while not is_pos_def(qp_G):
+            qp_G += np.identity(qp_G.shape[0]) * 1e-8
+        qp_a = -q
+        qp_C = -np.vstack([A, G]).T
+        qp_b = -np.vstack([b, h])
+        meq = A.shape[0]
+        solution = quadprog.solve_qp(qp_G, qp_a.squeeze(), qp_C, qp_b.squeeze(), meq)
+        # print(solution[1])
+        return solution[0]
+    else:
+        raise NotImplementedError('no {}'.format(qp_solver))
 
 
 class SVMPredictor(object):
@@ -172,14 +194,10 @@ class SVMPredictor(object):
         """
         score = self.score(x)
         return np.sign(score)
-    
-    # Compute margins
+
     def score(self, x):
-        # n_support_vectors is number of supper vectors
-        # n_features is the dimension of input features
         n_support_vectors, n_features = self._support_vectors.shape
         x = x.reshape(-1, n_features)
-        # Befor .sum, it is a row vector, each element represents a_i y_i (xx_i)
         res = (self._gram_matrix(x, self._support_vectors)
                * self._weights.reshape(-1, n_support_vectors)
                * self._support_vector_labels.reshape(-1, n_support_vectors)).sum(axis=1)
